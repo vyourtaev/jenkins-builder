@@ -1,0 +1,20 @@
+- project: 
+    name: monorepo
+    app-name:
+      - 'notification':
+          repo: 'notification-frontend' 
+      - 'trading':
+          repo: 'trading-frontend' 
+      - 'signup':
+          repo: 'xchange-signup' 
+      - 'wallet':
+          repo: 'wallet' 
+      - 'company':
+          repo: 'company' 
+      - 'requirement':
+          repo: 'requirement' 
+      - 'xchange':
+          repo: 'xchange-frontend' 
+
+    jobs: 
+      - '{name}_{app-name}'

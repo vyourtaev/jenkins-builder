@@ -1,0 +1,75 @@
+- job-template:
+    name: '{name}_{app-name}'
+    project-type: pipeline 
+    defaults: global
+    description: |- 
+            <h6 color="blue">Build {app-name} app from monorepo</h5>
+            <h7>Available builds</h6>
+            <ul>
+               <li>Main-app frontend</li>
+               <li>Trading-app(element)</li>
+               <li>Notification-app</li>
+               <li>Sign-Up-app</li>
+               <li>Wallet-app</li>
+               <li>Company-app</li>
+               <li>Requirement-app</li>
+            </ul>
+    disabled: false
+    concurrent: true
+    quiet-period: 5
+    block-downstream: false
+    block-upstream: false
+    retry-count: 3
+
+    properties:
+      - build-discarder:
+          days-to-keep: 5
+          num-to-keep: 5
+
+          #    triggers:
+          #      - bitbucket
+
+    dsl: |
+      podTemplate(
+          inheritFrom: 'builder'
+      ) {{
+           node(POD_LABEL) {{
+               def COLOR_MAP = ['SUCCESS': 'good', 'FAILURE': 'danger', 'UNSTABLE': 'danger', 'ABORTED': 'danger']
+               try {{
+                  ansiColor('xterm') {{
+                     stage('checkout') {{
+                        checkout([$class: 'GitSCM', 
+                        branches: [[name: '*/master']], 
+                        extensions: [[$class: 'CloneOption', timeout: 20]],
+                        userRemoteConfigs: [[credentialsId: 'bitbucket-username', 
+                        url: 'https://vyourtaev@bitbucket.org/xchangeteam/xchange-app.git']]])
+                     }}          
+
+                     stage('Install and Test {app-name} app') {{
+                        container('builder') {{
+                           sh 'npm install';
+                           sh 'node node_modules/.bin/nx run {app-name}-app:test';
+                        }}
+                     }}   
+
+                     stage('Build {app-name} app') {{
+                        container('builder') {{
+                           sh 'npm run build:{app-name}';
+                        }}
+                     }}   
+
+                     stage('docker image build {app-name} app') {{
+                         container('docker') {{
+                             sh 'docker build -t 615509580745.dkr.ecr.eu-central-1.amazonaws.com/{repo}:latest -f apps/{app-name}-app/Dockerfile dist/apps/'
+                             sh 'docker push 615509580745.dkr.ecr.eu-central-1.amazonaws.com/{repo}:latest'
+                         }}
+                     }}
+                  }}
+              }} catch(error) {{
+                    currentBuild.result = 'FAILURE'
+                    throw error
+              }} finally {{
+                     slackSend color: COLOR_MAP[currentBuild.currentResult], message: """*${{currentBuild.currentResult}}:* `${{env.JOB_NAME}}` #${{env.BUILD_NUMBER}}:\n${{env.BUILD_URL}}"""
+              }}
+           }} 
+        }}
