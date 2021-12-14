@@ -1,44 +1,6 @@
 - project: 
     name: Launch_Docker
     env-name:
-      - 'AWA':
-          host: awa
-      - 'CRE':
-          host: cre
-      - 'DTA':
-          host: dta
-      - 'JAH':
-          host: jah
-      - 'KHO':
-          host: kho
-      - 'MAIN':
-          host: main
-      - 'NAN':
-          host: nan
-      - 'OKO':
-          host: oko
-      - 'OSA':
-          host: osa
-      - 'REEFER1':
-          host: reefer1
-      - 'REEFER2':
-          host: reefer2
-      - 'RPE':
-          host: rpe
-      - 'TEST':
-          host: test
-      - 'TEST2':
-          host: test2
-      - 'TEST_AUTOMATION':
-          host: test-automation
-      - 'TWA':
-          host: twa
-      - 'VOVA':
-          host: vova
-      - 'VRU':
-          host: vru
-      - 'VSI':
-          host: vsi
       - 'VSO':
           host: vso
 

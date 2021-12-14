@@ -1,0 +1,7 @@
+- project: 
+    name: 'Test-Cypress-E2E-3'
+    component:
+      - 'leasing'
+
+    jobs: 
+      - '{name}'

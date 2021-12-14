@@ -1,0 +1,140 @@
+- job-template:
+    name: '{name}'
+    project-type: pipeline 
+    defaults: global
+    description: |- 
+            <h6 color="blue">E2E Testing {name} Environment</h6>
+            <ul>
+               <li>Leasing (main) App</li>
+            </ul>
+    disabled: false
+    concurrent: true
+    quiet-period: 5
+    block-downstream: false
+    block-upstream: false
+    retry-count: 3
+
+    wrappers:
+      - ansicolor:
+          colormap: "xterm"
+
+    properties:
+      - build-discarder:
+          days-to-keep: 5
+          num-to-keep: 5
+
+    parameters:
+      - string: 
+          name: BRANCH_NAME
+          description: "Branch name for e2e tests"
+          default: bugfix/LEAS-00-test-run
+
+      - string: 
+          name: LEASING_FRONTEND_DOCKER_IMAGE_TAG
+          description: "Tag of the leasing frontend docker image"
+          default: e2e
+
+      - string: 
+          name: LEASING_BACKEND_DOCKER_IMAGE_TAG
+          description: "Tag of the leasing backend docker image"
+          default: e2e
+
+      - string: 
+          name: CYPRESS_DEFAULT_API
+          description: "Against which system-under-test (SUT) should the Cypress tests be fired?"
+          default: http://leasing-frontend.testing.kube
+
+      - string: 
+          name: CYPRESS_USERNAME
+          description: "Username to connect application"
+          default: cro@container-xchange.com
+
+      - password:
+          name: CYPRESS_PASSWORD
+          description: "Password to connect application"
+          default: 123
+
+      - string: 
+          name: CYPRESS_DB_HOST
+          description: "Database endpoint url"
+          default: leasing-mysql.testing.kube
+
+      - string: 
+          name: CYPRESS_DB_NAME
+          description: "Database name"
+          default: xchangelive
+
+      - string:
+          name: CYPRESS_DB_USER
+          description: "Username to connect database"
+          default: awsdbuser
+
+      - password:
+          name: CYPRESS_DB_PASSWORD
+          description: "Password to connect database"
+          default: Xchange_2018
+
+
+    dsl: |
+      podTemplate(
+          inheritFrom: 'builder'
+      ) {{
+           node(POD_LABEL) {{
+               def COLOR_MAP = ['SUCCESS': 'good', 'FAILURE': 'danger', 'UNSTABLE': 'danger', 'ABORTED': 'danger']
+               def CYPRESS_VIDEOS_DIR = 'dist/cypress/apps/xchange-app-e2e'
+
+               try {{
+                  def target_url = params.CYPRESS_DEFAULT_API
+                  def branch_name = params.BRANCH_NAME
+                  env.FRONTEND_TAG = params.LEASING_FRONTEND_DOCKER_IMAGE_TAG
+                  env.BACKEND_TAG = params.LEASING_BACKEND_DOCKER_IMAGE_TAG
+                  env.backend_tag = params.LEASING_BACKEND_DOCKER_IMAGE_TAG
+
+                  ansiColor('xterm') {{
+                     stage('checkout') {{
+                        checkout([$class: 'GitSCM', 
+                        branches: [[name: '*/${{branch_name}}']], 
+                        extensions: [[$class: 'CloneOption', timeout: 20]],
+                        userRemoteConfigs: [[credentialsId: 'bitbucket-username', 
+                        url: 'https://bitbucket.org/xchangeteam/xchange-app.git']]])
+                     }}          
+
+                     stage('Deploy Leasing environment' ) {{
+                        container('builder') {{
+                          sh "helm repo update"
+                          sh "helm uninstall leasing --namespace testing || true"
+                          sh "sleep 120"
+                          sh "helm upgrade --install leasing --create-namespace --namespace testing --set frontend.image.tag=${{env.FRONTEND_TAG}} --set backend.image.tag=${{env.BACKEND_TAG}} xchange-helm/leasing"
+                        }}
+                     }}   
+
+                     stage('Run Cypress E2E' ) {{
+                        container('builder') {{
+                           sh "npm install";
+                           sh "node_modules/.bin/wait-on ${{CYPRESS_DEFAULT_API}}/api/environment/health"
+                           sh "node ./cypress-before-start.js"
+                           sh "node_modules/.bin/nx run xchange-app-e2e:e2e --skipServe --headless --devServerTarget= --baseUrl ${{target_url}}"
+                        }}
+                     }}   
+
+                  }}
+              }} catch(error) {{
+                    currentBuild.result = 'FAILURE'
+                    throw error
+              }} finally {{
+                     withAWS(region:'eu-central-1') {{
+                        s3Upload(bucket:'test.static.container-xchange.com', path:"e2e/job-id-$BUILD_ID", workingDir: CYPRESS_VIDEOS_DIR, includePathPattern: "**/*")
+                     }}
+
+                     slackSend color: COLOR_MAP[currentBuild.currentResult], message: """*${{currentBuild.currentResult}}:* `${{env.JOB_NAME}}` #${{env.BUILD_NUMBER}}:\n${{env.BUILD_URL}}"""
+              }}
+           }} 
+        }}
+
+
+- view:
+    name: TESTING
+    description: 'Collection of Test Cases'
+    view-type: list
+    regex: Test-.*
+

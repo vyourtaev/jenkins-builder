@@ -1,16 +1,20 @@
 - job-template:
     name: '{name}_{env-name}'
-    project-type: freestyle
+    project-type: pipeline
+      dsl: |
+          build job: "job1"
+          parallel [
+            2a: build job: "job2a",
+            2b: node "dummynode" {{
+              sh "echo {isay}"
+            }}
+          ]
+
     defaults: global
     description: |- 
-            <h6 color="blue">Personal {env-name} Environment</h6>
+            <h6 color="blue">E2E Tests for {env-name} application </h6>
             <ul>
-               <li>Main App Backend</li>
-               <li>Main App Frontend</li>
-               <li>Trading App Frontend</li>
-               <li>Trading App Backend</li>
-               <li>Notification App Frontend</li>
-               <li>Notification App Backend</li>
+               <li>E2E tests for Leasing app</li>
             </ul>
     disabled: false
     concurrent: true
@@ -62,113 +66,28 @@
           enable-filters: true
           filter-starts-at: 1
 
-      - active-choices:
-          name: TRADING_FRONTEND_TAG
-          description: Trading fontend docker image tag
-          choice-type: single-select
-          script:
-             groovy: |-
-               def RepoName = "trading-frontend"
-               def command = "aws ecr describe-images --registry-id 615509580745 --repository-name $RepoName --query reverse(sort_by(imageDetails,&imagePushedAt))[*].imageTags[] --output text"
-               def proc = command.execute()
-               proc.waitFor()
-               def output = proc.in.text
-               return output.tokenize()
-             use-groovy-sandbox: true
-          enable-filters: true
-          filter-starts-at: 1
-
-      - active-choices:
-          name: TRADING_BACKEND_TAG
-          description: Trading backend docker image tag
-          choice-type: single-select
-          script:
-             groovy: |-
-               def RepoName = "xchange-trading"
-               def command = "aws ecr describe-images --registry-id 615509580745 --repository-name $RepoName --query reverse(sort_by(imageDetails,&imagePushedAt))[*].imageTags[] --output text"
-               def proc = command.execute()
-               proc.waitFor()
-               def output = proc.in.text
-               return output.tokenize()
-             use-groovy-sandbox: true
-          enable-filters: true
-          filter-starts-at: 1
-
-      - active-choices:
-          name: NOTIFICATION_FRONTEND_TAG
-          description: Notification fontend docker image tag
-          choice-type: single-select
-          script:
-             groovy: |-
-               def RepoName = "notification-frontend"
-               def command = "aws ecr describe-images --registry-id 615509580745 --repository-name $RepoName --query reverse(sort_by(imageDetails,&imagePushedAt))[*].imageTags[] --output text"
-               def proc = command.execute()
-               proc.waitFor()
-               def output = proc.in.text
-               return output.tokenize()
-             use-groovy-sandbox: true
-          enable-filters: true
-          filter-starts-at: 1
-
-      - active-choices:
-          name: NOTIFICATION_BACKEND_TAG
-          description: Notification backend docker image tag
-          choice-type: single-select
-          script:
-             groovy: |-
-               def RepoName = "notification"
-               def command = "aws ecr describe-images --registry-id 615509580745 --repository-name $RepoName --query reverse(sort_by(imageDetails,&imagePushedAt))[*].imageTags[] --output text"
-               def proc = command.execute()
-               proc.waitFor()
-               def output = proc.in.text
-               return output.tokenize()
-             use-groovy-sandbox: true
-          enable-filters: true
-          filter-starts-at: 1
-
       - choice: 
           name: ACTIVE_PROFILE
           description: "Current profile"
           choices:
             - docker
-            - '{host}'
-
-      - choice: 
-          name: DOCKER_STACK_DRY_RUN
-          description: ""
-          choices:
-            - "false"
-            - "true"
-
 
     scm:
       - mainapp-scm
 
-
-    builders:
-      - ansible-playbook:
-          playbook: ansible/deployment/mainapp/site.yml
-          inventory:
-            path: ansible/deployment/mainapp/hosts
-          hosts: '{host}'
-          credentials-id: 44885f07-8bc6-400f-b02b-9c41c2cbc59a
-          colorized-output: "true"
      
 - scm:
     name: mainapp-scm
     scm:
       - git:
-         url: git@bitbucket.org:xchangeteam/xchange-devops.git
+         url: git clone git@bitbucket.org:xchangeteam/xchange-app.git
          branches:
-          - origin/DEVOPS-127
-         credentials-id: 44885f07-8bc6-400f-b02b-9c41c2cbc59a
-         sparse-checkout:
-           paths: 
-             - ansible/deployment/mainapp
+          - origin/bugfix/LEAS-00-test-run
+         credentials-id: bitbucket-username
          
-#- view:
-#    name: DOCKER_LAUNCH_JJB
-#    description: 'View for Docker Launch Jobs'
-#    view-type: list
-#    regex: Launch_Docker_.*
+- view:
+    name: TESTING
+    description: 'Collection of tesing jobs'
+    view-type: list
+    regex: Test_.*
 

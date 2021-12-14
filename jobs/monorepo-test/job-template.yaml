@@ -1,0 +1,63 @@
+- job-template:
+    name: '{name}'
+    project-type: pipeline 
+    defaults: global
+    description: |- 
+            <h6 color="blue">Build {name} app from monorepo</h5>
+            <h7>Available builds</h6>
+            <ul>
+               <li>Monorepo Tests</li>
+            </ul>
+    disabled: false
+    concurrent: true
+    quiet-period: 5
+    block-downstream: false
+    block-upstream: false
+    retry-count: 3
+
+    properties:
+      - build-discarder:
+          days-to-keep: 5
+          num-to-keep: 5
+
+          triggers:
+           - bitbucket-push-and-pull-request
+               
+
+    dsl: |
+      podTemplate(
+          inheritFrom: 'builder'
+      ) {{
+           node(POD_LABEL) {{
+               def COLOR_MAP = ['SUCCESS': 'good', 'FAILURE': 'danger', 'UNSTABLE': 'danger', 'ABORTED': 'danger']
+               try {{
+                  ansiColor('xterm') {{
+                    stage('checkout') {{
+                        checkout([$class: 'GitSCM',
+                        branches: [[name: '*/${{BITBUCKET_SOURCE_BRANCH}}']],
+                        extensions: [[$class: 'CloneOption', timeout: 20]],
+                        userRemoteConfigs: [[credentialsId: 'bitbucket-username',
+                        url: 'https://bitbucket.org/xchangeteam/xchange-app.git']]])
+                    }}
+                    stage('Install and Test {name} app') {{
+                        container('builder') {{
+                           sh 'npm ci';
+                           sh 'npm run postinstall';
+                        }}
+                     }}   
+
+                    stage('Build {name} app') {{
+                        container('builder') {{
+                           sh 'npm run lint';
+                           sh 'npm run test';
+                        }}
+                     }}   
+                  }}
+              }} catch(error) {{
+                    currentBuild.result = 'FAILURE'
+                    throw error
+              }} finally {{
+                     slackSend color: COLOR_MAP[currentBuild.currentResult], message: """*${{currentBuild.currentResult}}:* `${{env.JOB_NAME}}` #${{env.BUILD_NUMBER}}:\n${{env.BUILD_URL}}"""
+              }}
+           }} 
+        }}

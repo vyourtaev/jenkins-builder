@@ -1,0 +1,8 @@
+- project: 
+    name: Monorepo-Unit-Tests
+    app-name:
+      - 'xchange':
+        repo: 'xchange-frontend' 
+
+    jobs: 
+      - '{name}'
